@@ -5,12 +5,14 @@
 // ─────────────────────────────────────────────────────────
 // CONFIGURATION: update BACKEND_URL after deploying backend
 // ─────────────────────────────────────────────────────────
-const BACKEND_URL = (() => {
+const RAILWAY_URL = 'https://athenilynn-production.up.railway.app'; // ← PASTE YOUR URL HERE
+
+let BACKEND_URL = (() => {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:3000';
   }
   // Replace with your Railway/Render backend URL after deploying:
-  return 'https://your-backend.railway.app';
+  return RAILWAY_URL;
 })();
 // ============================================================
 

@@ -75,7 +75,22 @@
   </div>
 
   <script>
-    const ADMIN_PASSWORD = 'admin123'; // ← CHANGE THIS to a strong password
+   const RAILWAY_URL = 'https://athenilynn-production.up.railway.app'; // ← fallback only
+
+    let BACKEND_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3000'
+      : RAILWAY_URL;
+
+    // Try to auto-detect the correct backend URL from Railway's config endpoint
+    (async () => {
+      try {
+        const r = await fetch(RAILWAY_URL + '/api/config');
+        if (r.ok) {
+          const cfg = await r.json();
+          if (cfg.backendUrl) BACKEND_URL = cfg.backendUrl;
+        }
+      } catch (_) { /* stick with RAILWAY_URL fallback */ }
+    })();
 
     const form      = document.getElementById('adminForm');
     const msg       = document.getElementById('msg');
@@ -85,42 +100,52 @@
     const eyeHide   = document.getElementById('eyeHide');
     const loginBtn  = document.getElementById('loginBtn');
 
-    // ── Toggle password visibility ────────────────────────────────
     toggleBtn.addEventListener('click', () => {
       const isHidden = pwInput.type === 'password';
-
-      // Switch the input type
       pwInput.type = isHidden ? 'text' : 'password';
-
-      // Swap icons: eye-open visible when pw is hidden, eye-slash when revealed
-      eyeShow.classList.toggle('hidden', isHidden);   // hide eye-open when revealing
-      eyeHide.classList.toggle('hidden', !isHidden);  // show eye-slash when revealing
-
+      eyeShow.classList.toggle('hidden', isHidden);
+      eyeHide.classList.toggle('hidden', !isHidden);
       toggleBtn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
       pwInput.focus();
     });
 
-    // ── Back button ───────────────────────────────────────────────
     document.getElementById('cancelBtn').addEventListener('click', () => {
       window.location.href = 'index.html';
     });
 
-    // ── Login submit ──────────────────────────────────────────────
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (pwInput.value === ADMIN_PASSWORD) {
-        sessionStorage.setItem('isAdmin', '1');
-        sessionStorage.setItem('adminToken', ADMIN_PASSWORD); // needed by server API calls
-        msg.className    = 'msg success';
-        msg.textContent  = '✓ Login successful! Redirecting…';
-        loginBtn.disabled      = true;
-        loginBtn.style.opacity = '0.7';
-        setTimeout(() => { window.location.href = 'index.html'; }, 1000);
-      } else {
-        msg.className   = 'msg error';
+      const password = pwInput.value;
+      if (!password) return;
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in…';
+      msg.className = 'msg';
+      msg.textContent = '';
+
+      try {
+        const res = await fetch(BACKEND_URL + '/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        if (res.ok) {
+          sessionStorage.setItem('isAdmin', '1');
+          sessionStorage.setItem('adminToken', password);
+          msg.className = 'msg success';
+          msg.textContent = '✓ Login successful! Redirecting…';
+          loginBtn.style.opacity = '0.7';
+          setTimeout(() => { window.location.href = 'index.html'; }, 900);
+        } else {
+          throw new Error('Incorrect password');
+        }
+      } catch (err) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+        msg.className = 'msg error';
         msg.textContent = '✕ Incorrect password. Please try again.';
-        pwInput.value   = '';
-        // Shake animation — remove then re-add to restart it
+        pwInput.value = '';
         pwInput.classList.remove('shake');
         void pwInput.offsetWidth;
         pwInput.classList.add('shake');
@@ -129,9 +154,7 @@
       }
     });
 
-    // ── On load ───────────────────────────────────────────────────
     window.addEventListener('load', () => {
-      // Skip login if already authenticated
       if (sessionStorage.getItem('isAdmin') === '1') {
         window.location.href = 'index.html';
         return;
